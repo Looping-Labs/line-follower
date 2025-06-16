@@ -1,30 +1,9 @@
-/**
- * @file fixed_main.ino
- * @brief Fixed Line Follower with Proper QTR Memory Allocation Understanding
- *
- * This implementation incorporates the crucial discovery about QTR library memory
- * allocation behavior. The key insight: QTR calibration arrays are only allocated
- * AFTER calling calibrate() at least once. Attempting to write to these arrays
- * before allocation causes system crashes.
- *
- * Educational Focus: This demonstrates how understanding library internals and
- * memory allocation patterns is crucial for robust embedded systems development.
- * The solution shows how to work WITH library design patterns rather than
- * fighting against them.
- *
- * Key Learning: Always understand how embedded libraries manage memory internally,
- * especially when dealing with array pointers and dynamic allocation.
- *
- * @author Embedded Systems Memory Management Specialist
- * @version Fixed-Memory-1.0
- */
-
 #include "EEPROMCalibrationManager.h"
 #include <Arduino.h>
-#include <QTRSensors.h>
 #include <EEPROM.h>
+#include <QTRSensors.h>
 
-// Hardware configuration - your proven setup
+// Hardware configuration
 #define D1 36
 #define D2 39
 #define D3 34
@@ -43,28 +22,28 @@
 #define CALIB_START_ADDRESS 0
 
 // Hardware arrays
-const uint8_t sensorPins[SENSOR_COUNT] = { D1, D2, D3, D4, D5, D6, D7, D8 };
-const double sensorWeights[SENSOR_COUNT] = { -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5 };
+const uint8_t sensorPins[SENSOR_COUNT] = {D1, D2, D3, D4, D5, D6, D7, D8};
+const double sensorWeights[SENSOR_COUNT] = {-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5};
 uint16_t sensorValues[SENSOR_COUNT];
 
 // Global objects
 QTRSensors qtr;
-EEPROMCalibrationManager* calibManager = nullptr;
+EEPROMCalibrationManager *calibManager = nullptr;
 
 // System state tracking
 bool systemInitialized = false;
 bool calibrationLoaded = false;
-bool qtrMemoryAllocated = false;  // NEW: Track QTR memory allocation state
+bool qtrMemoryAllocated = false;
 
 // Interrupt handling
 volatile bool calibRequested = false;
 volatile bool startRequested = false;
-const unsigned long DEBOUNCE_DELAY = 50;
-unsigned long lastCalibInterrupt = 0;
-unsigned long lastStartInterrupt = 0;
+const uint32_t DEBOUNCE_DELAY = 50;
+uint32_t lastCalibInterrupt = 0;
+uint32_t lastStartInterrupt = 0;
 
 void IRAM_ATTR handleCalibInterrupt() {
-  unsigned long now = millis();
+  uint32_t now = millis();
   if (now - lastCalibInterrupt > DEBOUNCE_DELAY) {
     calibRequested = true;
     lastCalibInterrupt = now;
@@ -72,22 +51,13 @@ void IRAM_ATTR handleCalibInterrupt() {
 }
 
 void IRAM_ATTR handleStartInterrupt() {
-  unsigned long now = millis();
+  uint32_t now = millis();
   if (now - lastStartInterrupt > DEBOUNCE_DELAY) {
     startRequested = true;
     lastStartInterrupt = now;
   }
 }
 
-/**
- * @brief Initialize QTR Sensors with Proper Memory Allocation
- * 
- * This function now includes the critical step of ensuring QTR calibration
- * arrays are properly allocated before any attempt to load saved calibration.
- * 
- * Educational Note: This demonstrates how to work WITH library design patterns
- * rather than making assumptions about when memory is allocated.
- */
 void initializeQTRSensors() {
   Serial.println(F("=== QTR SENSOR INITIALIZATION WITH MEMORY ALLOCATION ==="));
 
@@ -105,7 +75,7 @@ void initializeQTRSensors() {
   // Perform minimal calibration just to allocate memory
   // We don't need meaningful calibration data here - just memory allocation
   for (int i = 0; i < 10; i++) {
-    qtr.calibrate();  // This triggers memory allocation on first call
+    qtr.calibrate(); // This triggers memory allocation on first call
     delay(10);
   }
 
@@ -120,8 +90,8 @@ void initializeQTRSensors() {
     // Initialize arrays to safe default values
     // This ensures we have known-good starting values
     for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
-      qtr.calibrationOn.minimum[i] = 0;     // Safe minimum value
-      qtr.calibrationOn.maximum[i] = 4095;  // Safe maximum value (ESP32 ADC range)
+      qtr.calibrationOn.minimum[i] = 0;    // Safe minimum value
+      qtr.calibrationOn.maximum[i] = 4095; // Safe maximum value (ESP32 ADC range)
     }
 
     Serial.println(F("✓ Calibration arrays initialized with safe default values"));
@@ -139,14 +109,15 @@ void initializeQTRSensors() {
     Serial.print(i);
     Serial.print(F("=GPIO"));
     Serial.print(sensorPins[i]);
-    if (i < SENSOR_COUNT - 1) Serial.print(F(", "));
+    if (i < SENSOR_COUNT - 1)
+      Serial.print(F(", "));
   }
   Serial.println();
 }
 
 /**
  * @brief Initialize All Systems with Proper Sequence
- * 
+ *
  * This function implements the correct initialization sequence that respects
  * the QTR library's memory allocation requirements.
  */
@@ -196,7 +167,7 @@ bool initializeAllSystems() {
 
 /**
  * @brief Safe Calibration Loading with Memory Verification
- * 
+ *
  * This function implements the proper sequence for loading saved calibration
  * data, ensuring that QTR memory is allocated before attempting to write to it.
  */
@@ -232,14 +203,16 @@ bool loadSavedCalibration() {
     Serial.print(F("Min values: "));
     for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
       Serial.print(qtr.calibrationOn.minimum[i]);
-      if (i < SENSOR_COUNT - 1) Serial.print(F(" "));
+      if (i < SENSOR_COUNT - 1)
+        Serial.print(F(" "));
     }
     Serial.println();
 
     Serial.print(F("Max values: "));
     for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
       Serial.print(qtr.calibrationOn.maximum[i]);
-      if (i < SENSOR_COUNT - 1) Serial.print(F(" "));
+      if (i < SENSOR_COUNT - 1)
+        Serial.print(F(" "));
     }
     Serial.println();
 
@@ -255,7 +228,7 @@ bool loadSavedCalibration() {
 
 /**
  * @brief Perform New Calibration with Proper Memory Management
- * 
+ *
  * This function performs fresh sensor calibration, ensuring that the process
  * works correctly with the QTR library's memory allocation patterns.
  */
@@ -278,8 +251,8 @@ void performCalibration() {
 
   // Reset calibration arrays to ensure clean start
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
-    qtr.calibrationOn.minimum[i] = 4095;  // Will be reduced during calibration
-    qtr.calibrationOn.maximum[i] = 0;     // Will be increased during calibration
+    qtr.calibrationOn.minimum[i] = 4095; // Will be reduced during calibration
+    qtr.calibrationOn.maximum[i] = 0;    // Will be increased during calibration
   }
 
   Serial.println(F("Move robot over light and dark surfaces for 3 seconds..."));
@@ -294,11 +267,11 @@ void performCalibration() {
   Serial.println(F("CALIBRATING NOW - Move robot over different surfaces!"));
 
   // Perform actual calibration
-  unsigned long startTime = millis();
-  const unsigned long calibrationDuration = 3000;
+  uint32_t startTime = millis();
+  const uint32_t calibrationDuration = 4000;
 
   while (millis() - startTime < calibrationDuration) {
-    qtr.calibrate();  // This updates the min/max arrays
+    qtr.calibrate(); // This updates the min/max arrays
 
     // Visual feedback
     digitalWrite(LED_PIN, (millis() % 200) < 100);
@@ -320,14 +293,16 @@ void performCalibration() {
   Serial.print(F("Min: "));
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
     Serial.print(qtr.calibrationOn.minimum[i]);
-    if (i < SENSOR_COUNT - 1) Serial.print(F(" "));
+    if (i < SENSOR_COUNT - 1)
+      Serial.print(F(" "));
   }
   Serial.println();
 
   Serial.print(F("Max: "));
   for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
     Serial.print(qtr.calibrationOn.maximum[i]);
-    if (i < SENSOR_COUNT - 1) Serial.print(F(" "));
+    if (i < SENSOR_COUNT - 1)
+      Serial.print(F(" "));
   }
   Serial.println();
 
@@ -351,7 +326,7 @@ void performCalibration() {
     Serial.println(F("⚠ WARNING: Failed to save calibration"));
     Serial.println(calibManager->getErrorDescription(calibManager->getLastError()));
     Serial.println(F("Calibration will work this session but won't persist"));
-    calibrationLoaded = true;  // Still usable for current session
+    calibrationLoaded = true; // Still usable for current session
   }
 
   Serial.println(F("Robot is ready for line following!"));
@@ -360,20 +335,6 @@ void performCalibration() {
 void setup() {
   Serial.begin(115200);
   delay(2000);
-
-  Serial.println(F("\n"));
-  Serial.println(F("============================================="));
-  Serial.println(F("    FIXED LINE FOLLOWER ROBOT"));
-  Serial.println(F("  Proper QTR Memory Allocation Edition"));
-  Serial.println(F("============================================="));
-  Serial.println();
-
-  Serial.println(F("This version incorporates the crucial discovery about"));
-  Serial.println(F("QTR library memory allocation requirements:"));
-  Serial.println(F("• Calibration arrays are only allocated AFTER calling calibrate()"));
-  Serial.println(F("• Writing to unallocated arrays causes system crashes"));
-  Serial.println(F("• Proper initialization sequence prevents these crashes"));
-  Serial.println();
 
   // Initialize all systems with proper sequence
   if (!initializeAllSystems()) {
@@ -416,54 +377,15 @@ void setup() {
       delay(200);
     }
   }
-
-  Serial.println(F("\n=== SYSTEM READY ==="));
-  Serial.println(F("Controls:"));
-  Serial.println(F("  CALIB button: Calibrate sensors"));
-  Serial.println(F("  START button: Start/stop line following"));
-  Serial.println(F("  's': Show stored calibration"));
-  Serial.println(F("  'c': Clear calibration"));
-  Serial.println();
 }
 
 void loop() {
   static bool running = false;
 
-  // Handle serial commands
-  if (Serial.available()) {
-    char command = Serial.read();
-    while (Serial.available()) Serial.read();  // Clear buffer
-
-    switch (command) {
-      case 's':
-      case 'S':
-        Serial.println(F("\n=== STORED CALIBRATION ==="));
-        calibManager->displayStoredCalibration();
-        break;
-
-      case 'c':
-      case 'C':
-        Serial.println(F("\n=== CLEARING CALIBRATION ==="));
-        if (calibManager->clearCalibration()) {
-          Serial.println(F("✓ Calibration cleared"));
-          calibrationLoaded = false;
-        }
-        break;
-
-      case 'h':
-      case 'H':
-        Serial.println(F("\n=== HELP ==="));
-        Serial.println(F("s: Show calibration"));
-        Serial.println(F("c: Clear calibration"));
-        Serial.println(F("Physical buttons: CALIB=calibrate, START=run"));
-        break;
-    }
-  }
-
   // Handle calibration button
   if (calibRequested) {
     calibRequested = false;
-    running = false;  // Stop line following during calibration
+    running = false; 
     performCalibration();
   }
 
@@ -519,7 +441,8 @@ void loop() {
       Serial.print(F(" | Sensors: "));
       for (uint8_t i = 0; i < SENSOR_COUNT; i++) {
         Serial.print(sensorValues[i]);
-        if (i < SENSOR_COUNT - 1) Serial.print(F(" "));
+        if (i < SENSOR_COUNT - 1)
+          Serial.print(F(" "));
       }
       Serial.println();
     }
